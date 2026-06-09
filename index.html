@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tarea 3 — Gráficos de Bajo Nivel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #08080f;
+      color: #d0d0f0;
+      font-family: system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.4rem; color: #e0e0ff; }
+    .subtitle { color: #6868a8; font-size: 0.9rem; margin-bottom: 2.5rem; }
+    .cards { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+    .card {
+      background: #10101c;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 1.4rem 1.6rem;
+      width: 260px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .card:hover { border-color: #5555cc; background: #14142a; }
+    .card-tag { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5555cc; margin-bottom: 0.5rem; }
+    .card h2 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.8rem; color: #7878a8; line-height: 1.5; }
+    .card ul { font-size: 0.78rem; color: #6a6a98; padding-left: 1.1rem; margin-top: 0.6rem; line-height: 1.7; }
+    .pts { font-size: 0.75rem; font-weight: 600; color: #66cc88; margin-top: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Tarea 3 — Gráficos de Bajo Nivel</h1>
+  <p class="subtitle">Pipeline manual, shaders propios, jerarquías sin framework</p>
+  <div class="cards">
+    <a class="card" href="/partA/">
+      <div class="card-tag">Parte A</div>
+      <h2>WebGL2 + GLSL</h2>
+      <p>Pipeline completo sin Three.js. VAOs, VBOs, stack de matrices manual.</p>
+      <ul>
+        <li>Brazo de robot jerárquico</li>
+        <li>Sistema solar con lunas</li>
+        <li>Iluminación Phong/Blinn-Phong GLSL</li>
+        <li>Normal matrix por CPU</li>
+      </ul>
+      <div class="pts">50 pts</div>
+    </a>
+    <a class="card" href="/partB/">
+      <div class="card-tag">Parte B</div>
+      <h2>WebGPU + WGSL</h2>
+      <p>API moderna: render pipeline, bind groups, uniform buffers WGSL.</p>
+      <ul>
+        <li>Brazo de robot jerárquico</li>
+        <li>Sistema solar con lunas</li>
+        <li>Shader WGSL Phong/Blinn-Phong</li>
+        <li>Mismo shader para ambas escenas</li>
+      </ul>
+      <div class="pts">25 pts</div>
+    </a>
+    <a class="card" href="/partC/">
+      <div class="card-tag">Parte C</div>
+      <h2>WebGPU + TSL</h2>
+      <p>Three.js WebGPU renderer con nodos TSL para sombreado Blinn-Phong.</p>
+      <ul>
+        <li>Brazo de robot jerárquico</li>
+        <li>Sistema solar con lunas</li>
+        <li>Shader en nodos TSL</li>
+        <li>OrbitControls interactivos</li>
+      </ul>
+      <div class="pts">25 pts</div>
+    </a>
+  </div>
+</body>
+</html>

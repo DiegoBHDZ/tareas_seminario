@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parte B — WebGPU + WGSL</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a12; color: #e0e0ff; font-family: system-ui, sans-serif;
+           display: flex; flex-direction: column; height: 100vh; }
+
+    header { padding: 0.55rem 1rem; background: #10101c; border-bottom: 1px solid #2a2a4a;
+             display: flex; align-items: center; gap: 0.8rem; flex-shrink: 0; }
+    header a { color: #666; font-size: 0.8rem; text-decoration: none; }
+    header a:hover { color: #aaa; }
+    header h1 { font-size: 0.88rem; font-weight: 600; }
+    .tabs { display: flex; gap: 0.4rem; margin-left: auto; }
+    .tab { padding: 0.3rem 0.85rem; border-radius: 4px; border: 1px solid #3a3a6a;
+           background: transparent; color: #999; cursor: pointer; font-size: 0.8rem; }
+    .tab.active { background: #252585; border-color: #5555ff; color: #fff; }
+
+    .body { flex: 1; display: flex; overflow: hidden; }
+    canvas { flex: 1; display: block; min-width: 0; }
+
+    .ctrl-panel {
+      width: 230px; flex-shrink: 0; background: #0e0e1a;
+      border-left: 1px solid #1e1e3a; padding: 0.9rem 0.85rem;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .ctrl-panel h2 { font-size: 0.78rem; text-transform: uppercase;
+                     letter-spacing: 0.1em; color: #5566cc; margin-bottom: 0.2rem; }
+
+    .ctrl-row { display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; }
+    .ctrl-toggle { cursor: pointer; gap: 0.5rem; }
+    .ctrl-label { flex: 0 0 70px; color: #9999cc; font-size: 0.74rem; }
+    .ctrl-val { flex: 0 0 34px; text-align: right; color: #7788ff; font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+    input[type=range] { flex: 1; accent-color: #5566ff; cursor: pointer; }
+    .slider-group { display: flex; flex-direction: column; gap: 0.45rem; }
+    .slider-group.disabled { opacity: 0.35; pointer-events: none; }
+    .ctrl-note { font-size: 0.72rem; color: #556; line-height: 1.5; margin-top: 0.3rem; }
+
+    .badge { position: absolute; bottom: 0.6rem; left: 0.6rem; background: #0e0e1acc;
+             border: 1px solid #2a2a5a; border-radius: 4px; padding: 0.25rem 0.6rem;
+             font-size: 0.7rem; color: #6677bb; pointer-events: none; }
+    .error { position: fixed; inset: 0; display: none; align-items: center;
+             justify-content: center; background: #0a0a12ee; padding: 2rem; }
+    .error pre { max-width: 520px; color: #f99; font-size: 0.82rem; line-height: 1.7;
+                 white-space: pre-wrap; background: #1a0808; border: 1px solid #5a2020;
+                 border-radius: 8px; padding: 1.2rem 1.4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Inicio</a>
+    <h1>Parte B — WebGPU + WGSL · Render Pipeline · Bind Groups</h1>
+    <div class="tabs">
+      <button class="tab active" data-scene="robot">Brazo Robot</button>
+      <button class="tab"        data-scene="solar">Sistema Solar</button>
+    </div>
+  </header>
+  <div class="body">
+    <div style="position:relative;flex:1;min-width:0;">
+      <canvas id="gpu"></canvas>
+      <div class="badge">WebGPU · WGSL · Uniform Buffers · Blinn-Phong</div>
+    </div>
+    <aside class="ctrl-panel">
+      <h2 id="ctrlTitle">Controles</h2>
+      <div id="ctrlBody"></div>
+    </aside>
+  </div>
+  <div class="error" id="err"><pre id="errMsg">WebGPU no disponible.</pre></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
