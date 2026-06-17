@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parte D — Instancing</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a12; color: #e0e0ff; font-family: system-ui, sans-serif;
+           display: flex; flex-direction: column; height: 100vh; }
+
+    header { padding: 0.55rem 1rem; background: #10101c; border-bottom: 1px solid #2a2a4a;
+             display: flex; align-items: center; gap: 0.8rem; flex-shrink: 0; }
+    header a { color: #666; font-size: 0.8rem; text-decoration: none; }
+    header a:hover { color: #aaa; }
+    header h1 { font-size: 0.88rem; font-weight: 600; }
+
+    .body { flex: 1; display: flex; overflow: hidden; }
+    canvas { flex: 1; display: block; min-width: 0; width: 100%; height: 100%; }
+
+    .ctrl-panel {
+      width: 250px; flex-shrink: 0; background: #0e0e1a;
+      border-left: 1px solid #1e1e3a; padding: 0.9rem 0.85rem;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem;
+    }
+    .ctrl-panel h2 { font-size: 0.78rem; text-transform: uppercase;
+                     letter-spacing: 0.1em; color: #5566cc; margin-bottom: 0.2rem; }
+    .ctrl-row { display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; }
+    .ctrl-label { flex: 0 0 70px; color: #9999cc; font-size: 0.74rem; }
+    .ctrl-val { flex: 0 0 50px; text-align: right; color: #7788ff; font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+    input[type=range] { flex: 1; accent-color: #5566ff; cursor: pointer; }
+    .ctrl-note { font-size: 0.72rem; color: #556; line-height: 1.5; margin-top: 0.3rem; }
+
+    .stat { display: flex; justify-content: space-between; font-size: 0.78rem; color: #99aacc; }
+    .stat b { color: #fff; font-variant-numeric: tabular-nums; }
+    .stat.ok b { color: #6ee7a0; }
+    .stat.bad b { color: #ff8a8a; }
+
+    .badge { position: absolute; bottom: 0.6rem; left: 0.6rem; background: #0e0e1acc;
+             border: 1px solid #2a2a5a; border-radius: 4px; padding: 0.25rem 0.6rem;
+             font-size: 0.7rem; color: #6677bb; pointer-events: none; }
+    .error { position: fixed; inset: 0; display: none; align-items: center;
+             justify-content: center; background: #0a0a12ee; padding: 2rem; }
+    .error pre { max-width: 520px; color: #f99; font-size: 0.82rem; line-height: 1.7;
+                 white-space: pre-wrap; background: #1a0808; border: 1px solid #5a2020;
+                 border-radius: 8px; padding: 1.2rem 1.4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Inicio</a>
+    <h1>Parte D — Instancing · InstancedMesh con cientos de agentes animados</h1>
+  </header>
+  <div class="body">
+    <div style="position:relative;flex:1;min-width:0;">
+      <canvas id="gl"></canvas>
+      <div class="badge">Three.js · InstancedMesh · 1 draw call · matrices actualizadas en CPU cada frame</div>
+    </div>
+    <aside class="ctrl-panel">
+      <h2>Estado</h2>
+      <div class="stat"><span>FPS</span><b id="fpsVal">—</b></div>
+      <div class="stat"><span>Draw calls</span><b id="drawCalls">—</b></div>
+      <div class="stat"><span>Triángulos</span><b id="triCount">—</b></div>
+
+      <h2 style="margin-top:0.6rem;">Instancias</h2>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Cantidad</span>
+        <input type="range" id="countSlider" min="100" max="2000" step="100" value="500" />
+        <span class="ctrl-val" id="countVal">500</span>
+      </div>
+      <p class="ctrl-note">
+        Cada pez es una instancia independiente (posición, rotación y escala propias)
+        dentro de un único <code>InstancedMesh</code>. Las matrices se recalculan
+        cada frame en CPU (sin VAT) — al subir el contador verás cómo cae el FPS
+        antes de degradar el render.
+      </p>
+    </aside>
+  </div>
+  <div class="error" id="err"><pre id="errMsg">Error</pre></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

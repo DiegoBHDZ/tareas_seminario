@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parte E — boneVAT</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a12; color: #e0e0ff; font-family: system-ui, sans-serif;
+           display: flex; flex-direction: column; height: 100vh; }
+
+    header { padding: 0.55rem 1rem; background: #10101c; border-bottom: 1px solid #2a2a4a;
+             display: flex; align-items: center; gap: 0.8rem; flex-shrink: 0; }
+    header a { color: #666; font-size: 0.8rem; text-decoration: none; }
+    header a:hover { color: #aaa; }
+    header h1 { font-size: 0.88rem; font-weight: 600; }
+
+    .body { flex: 1; display: flex; overflow: hidden; }
+    canvas { flex: 1; display: block; min-width: 0; width: 100%; height: 100%; }
+
+    .ctrl-panel {
+      width: 250px; flex-shrink: 0; background: #0e0e1a;
+      border-left: 1px solid #1e1e3a; padding: 0.9rem 0.85rem;
+      overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem;
+    }
+    .ctrl-panel h2 { font-size: 0.78rem; text-transform: uppercase;
+                     letter-spacing: 0.1em; color: #5566cc; margin-bottom: 0.2rem; }
+    .stat { display: flex; justify-content: space-between; font-size: 0.78rem; color: #99aacc; }
+    .stat b { color: #fff; font-variant-numeric: tabular-nums; }
+    .ctrl-note { font-size: 0.72rem; color: #556; line-height: 1.5; margin-top: 0.3rem; }
+    .ctrl-note code { color: #889; }
+
+    .badge { position: absolute; bottom: 0.6rem; left: 0.6rem; background: #0e0e1acc;
+             border: 1px solid #2a2a5a; border-radius: 4px; padding: 0.25rem 0.6rem;
+             font-size: 0.7rem; color: #6677bb; pointer-events: none; }
+    .error { position: fixed; inset: 0; display: none; align-items: center;
+             justify-content: center; background: #0a0a12ee; padding: 2rem; }
+    .error pre { max-width: 520px; color: #f99; font-size: 0.82rem; line-height: 1.7;
+                 white-space: pre-wrap; background: #1a0808; border: 1px solid #5a2020;
+                 border-radius: 8px; padding: 1.2rem 1.4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">← Inicio</a>
+    <h1>Parte E — boneVAT · animación de esqueleto horneada en textura</h1>
+  </header>
+  <div class="body">
+    <div style="position:relative;flex:1;min-width:0;">
+      <canvas id="gl"></canvas>
+      <div class="badge">Three.js · InstancedMesh + ShaderMaterial · skinning 100% en vertex shader</div>
+    </div>
+    <aside class="ctrl-panel">
+      <h2>Estado</h2>
+      <div class="stat"><span>FPS</span><b id="fpsVal">—</b></div>
+      <div class="stat"><span>Draw calls</span><b id="drawCalls">—</b></div>
+      <div class="stat"><span>Instancias</span><b id="countVal">—</b></div>
+      <div class="stat"><span>Huesos</span><b id="boneVal">—</b></div>
+      <div class="stat"><span>Frames horneados</span><b id="frameVal">—</b></div>
+
+      <h2 style="margin-top:0.6rem;">Técnica</h2>
+      <p class="ctrl-note">
+        La animación <code>swim</code> del esqueleto del pez se hornea una sola vez
+        en una <code>DataTexture</code> (una fila por frame, 4 texeles por hueso).
+        El vertex shader reconstruye el skinning leyendo esa textura — no hay
+        <code>AnimationMixer</code> ni actualización de matrices de hueso en CPU.
+      </p>
+      <p class="ctrl-note">
+        Cada instancia tiene un atributo <code>timeOffset</code> distinto, así que
+        las 500 animaciones quedan desincronizadas sin costo extra. Las matrices de
+        instancia (posición/rotación/escala) se fijan una sola vez al cargar —
+        el único trabajo de CPU por frame es actualizar un uniforme <code>time</code>.
+      </p>
+    </aside>
+  </div>
+  <div class="error" id="err"><pre id="errMsg">Error</pre></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

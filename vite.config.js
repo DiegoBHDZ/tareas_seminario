@@ -12,6 +12,8 @@ export default defineConfig({
         partA: 'partA/index.html',
         partB: 'partB/index.html',
         partC: 'partC/index.html',
+        partD: 'partD/index.html',
+        partE: 'partE/index.html',
       },
     },
   },

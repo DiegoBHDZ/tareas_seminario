@@ -1,0 +1,385 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+
+\geometry{margin=2.5cm}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  pdftitle={Tarea 3 - Gráficos de Bajo Nivel},
+  pdfauthor={Diego Barrera Hernández y Brandon Daniel Martínez Alcántara}
+}
+
+\definecolor{codebg}{RGB}{20,20,32}
+\definecolor{codeframe}{RGB}{60,60,100}
+\definecolor{codecomment}{RGB}{100,160,100}
+\definecolor{codekw}{RGB}{130,160,255}
+\definecolor{codestr}{RGB}{255,180,100}
+
+\lstdefinestyle{glsl}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{white},
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecomment},
+  stringstyle=\color{codestr},
+  frame=single,
+  rulecolor=\color{codeframe},
+  breaklines=true,
+  tabsize=2,
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+
+% ──────────────────────────────────────────────
+\begin{document}
+
+% ── PORTADA ───────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+
+  {\Large Universidad Autónoma Metropolitana\par}
+  \vspace{0.4cm}
+  {\large División de Ciencias Básicas e Ingeniería\par}
+
+  \vspace{2.5cm}
+  {\Huge\bfseries Seminario de Tecnologías II\par}
+  \vspace{0.6cm}
+  {\LARGE Tarea 3\par}
+  \vspace{0.4cm}
+  {\large Gráficos de Bajo Nivel: WebGL2, WebGPU y TSL\par}
+
+  \vspace{3cm}
+  {\large Diego Barrera Hernández\par}
+  \vspace{0.3cm}
+  {\large Brandon Daniel Martínez Alcántara\par}
+
+  \vfill
+  {\large Ciudad de México, 2025\par}
+\end{titlepage}
+
+% ── ÍNDICE ────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────
+\section{Objetivo}
+
+El objetivo de esta tarea es implementar las jerarquías 3D articuladas de la Tarea~2 —brazo robótico y sistema solar— usando APIs de gráficos de bajo nivel, \textbf{sin ningún framework} que abstraiga el pipeline. Al entender cómo funciona cada etapa del pipeline a este nivel se pueden escribir shaders más eficientes para las tareas posteriores.
+
+El proyecto se divide en tres partes:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Parte A (50 pts):} WebGL2 + GLSL — pipeline completo gestionado a mano.
+  \item \textbf{Parte B (25 pts):} WebGPU + WGSL — API moderna con render pipeline y bind groups.
+  \item \textbf{Parte C (25 pts):} WebGPU + TSL — Three.js WebGPU renderer con shaders en nodos.
+\end{itemize}
+
+La demo desplegada está disponible en:
+
+\begin{center}
+  \url{https://tareas-seminario.vercel.app/}
+\end{center}
+
+% ─────────────────────────────────────────────
+\section{Escenas implementadas}
+
+En las tres partes se implementan las mismas dos escenas, tomadas directamente de la especificación de la Tarea~2:
+
+\subsection{Brazo robótico articulado}
+
+Cadena jerárquica de \textbf{5 eslabones más 2 dedos}:
+
+
+\[
+  \text{Base} \;\to\; \text{Hombro} \;\to\; \text{Codo} \;\to\; \text{Mu\~{n}eca} \;\to\; \text{Dedo 1},\; \text{Dedo 2}
+\]
+
+
+Cada articulación rota en su eje local (no en el origen global) usando un \textit{matrix stack} push/pop. La animación automática usa funciones \texttt{Math.sin(t)} con amplitudes y fases distintas por articulación, produciendo un ciclo continuo y suave. Los controles del panel permiten desactivar la animación automática y rotar cada articulación de forma independiente con sliders.
+
+\subsection{Sistema solar}
+
+Jerarquía: \textbf{Sol $\to$ 3 planetas $\to$ 1-2 lunas por planeta}.
+
+\begin{center}
+\begin{tabular}{lcc}
+  \toprule
+  Planeta & Lunas & Característica \\
+  \midrule
+  Tierra  & 1 (Luna)           & inclinación axial 23.4° \\
+  Marte   & 2 (Fobos, Deimos)  & color rojizo             \\
+  Saturno & 1 (Titán)          & anillo toroidal          \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+El Sol se comporta como fuente de luz puntual ubicada en el origen. Cada planeta orbita al sol y rota sobre su propio eje con velocidades distintas. Un slider de velocidad global escala todas las velocidades de órbita simultáneamente.
+
+% ─────────────────────────────────────────────
+\section{Biblioteca compartida}
+
+Las tres partes reutilizan los mismos módulos matemáticos ubicados en \texttt{src/shared/}:
+
+\subsection{\texttt{mat4.js} — Álgebra de matrices 4×4}
+
+Implementación propia en \texttt{Float32Array} de orden columna-mayor, compatible con WebGL y WGSL. Funciones implementadas:
+
+\begin{itemize}[leftmargin=*]
+  \item \texttt{multiply}, \texttt{translate}, \texttt{rotateX/Y/Z}, \texttt{scale}
+  \item \texttt{perspective} — proyección con \textit{frustum}
+  \item \texttt{lookAt} — cámara orientada hacia un punto
+  \item \texttt{invert} — inversión para la normal matrix
+  \item \texttt{normalMatrix} — transpuesta de la inversa de la parte 3×3 superior-izquierda
+\end{itemize}
+
+\subsection{\texttt{MatrixStack.js} — Pila de matrices}
+
+Implementa el patrón clásico push/pop para jerarquías de transformaciones. Cada \texttt{push()} guarda una copia del estado actual; \texttt{pop()} lo restaura. Incluye métodos de conveniencia \texttt{translate}, \texttt{rotateX/Y/Z} y \texttt{scale} que operan sobre la matriz del tope de la pila.
+
+Este stack es el equivalente manual al \texttt{Object3D} de Three.js.
+
+\subsection{\texttt{primitives.js} — Generadores de geometría}
+
+Genera arreglos de vértices indexados (posición + normal) para:
+\texttt{createSphere}, \texttt{createCylinder}, \texttt{createBox}, \texttt{createTorus}.
+
+\subsection{\texttt{controls-ui.js} — Panel de controles}
+
+Genera dinámicamente el HTML del panel lateral según la escena activa:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Brazo robot:} toggle auto-animación + 6 sliders (base, hombro, codo, muñeca, dedo 1, dedo 2).
+  \item \textbf{Sistema solar:} slider de velocidad global (0× a 4×).
+\end{itemize}
+
+% ─────────────────────────────────────────────
+\section{Parte A — WebGL2 + GLSL}
+
+\subsection{Pipeline manual}
+
+Sin ningún framework, cada frame ejecuta:
+
+\begin{enumerate}[leftmargin=*]
+  \item Se calcula la matriz de modelo con el \textit{matrix stack}.
+  \item Se deriva la \textit{normal matrix} (transpuesta de la inversa) en CPU.
+  \item Se suben las matrices como uniforms con \texttt{gl.uniformMatrix4fv} y \texttt{gl.uniformMatrix3fv}.
+  \item Se vincula el VAO y se llama a \texttt{gl.drawElements}.
+\end{enumerate}
+
+\subsection{VAOs y VBOs}
+
+Cada malla tiene su propio \textit{Vertex Array Object} que memoriza:
+\begin{itemize}[leftmargin=*]
+  \item VBO con datos entrelazados: posición (vec3) + normal (vec3), 6 floats por vértice.
+  \item EBO con índices \texttt{Uint16Array} para triangulación.
+  \item Descripción de atributos: \texttt{a\_position} en location 0, \texttt{a\_normal} en location 1.
+\end{itemize}
+
+\subsection{Shader GLSL ES 3.00}
+
+\textbf{Vertex shader:} transforma la posición al clip space y calcula la posición en world space y la normal transformada:
+
+\begin{lstlisting}[style=glsl, language={}]
+out vec3 v_worldPos;
+out vec3 v_normal;
+
+void main() {
+  vec4 worldPos = u_model * vec4(a_position, 1.0);
+  v_worldPos = worldPos.xyz;
+  v_normal   = u_normalMatrix * a_normal;
+  gl_Position = u_projection * u_view * worldPos;
+}
+\end{lstlisting}
+
+\textbf{Fragment shader — iluminación Phong difusa + Blinn-Phong especular:}
+
+\begin{lstlisting}[style=glsl, language={}]
+void main() {
+  vec3 N = normalize(v_normal);
+  vec3 L = normalize(u_lightPos - v_worldPos);
+  vec3 V = normalize(u_viewPos  - v_worldPos);
+  vec3 H = normalize(L + V);          // half-vector Blinn-Phong
+
+  vec3 ambient  = u_ambientColor * u_lightColor * 0.25;
+  float diff    = max(dot(N, L), 0.0);
+  vec3 diffuse  = diff * u_diffuseColor * u_lightColor;
+  float spec    = pow(max(dot(N, H), 0.0), u_shininess);
+  vec3 specular = spec * u_specularColor * u_lightColor;
+
+  fragColor = vec4(ambient + diffuse + specular, 1.0);
+}
+\end{lstlisting}
+
+El half-vector $\mathbf{H} = \text{normalize}(\mathbf{L} + \mathbf{V})$ es la característica central de Blinn-Phong, que reemplaza el cálculo del vector de reflexión $\mathbf{R}$ de Phong clásico y produce mejores resultados con exponentes altos.
+
+% ─────────────────────────────────────────────
+\section{Parte B — WebGPU + WGSL}
+
+\subsection{Inicialización del dispositivo}
+
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{navigator.gpu.requestAdapter()} — se intenta con \textit{high-performance}, \textit{low-power} y sin preferencia como fallback.
+  \item \texttt{adapter.requestDevice()} — crea el dispositivo lógico.
+  \item \texttt{canvas.getContext('webgpu')} — se configura con \texttt{context.configure()}.
+\end{enumerate}
+
+\subsection{Buffers}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Vertex buffer:} datos entrelazados posición + normal, \texttt{GPUBufferUsage.VERTEX}.
+  \item \textbf{Index buffer:} índices \texttt{Uint32Array}, \texttt{GPUBufferUsage.INDEX}.
+  \item \textbf{Uniform buffers:} uno por cada bloque de datos uniformes (cámara, luz, modelo, material), \texttt{GPUBufferUsage.UNIFORM | COPY\_DST}. Se actualizan con \texttt{device.queue.writeBuffer()}.
+\end{itemize}
+
+\subsection{Bind Groups}
+
+Los recursos se organizan en dos grupos de binding:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Group 0:} \texttt{Camera} (view, projection, viewPos) + \texttt{Light} (position, color). Se crea una vez por escena.
+  \item \textbf{Group 1:} \texttt{Model} (model matrix, normal matrix) + \texttt{Material} (ambient, diffuse, specular, shininess, emissive). Se actualiza antes de cada draw call.
+\end{itemize}
+
+\subsection{Shader WGSL}
+
+El shader WGSL replica la misma iluminación Blinn-Phong. La normal matrix se almacena como tres columnas \texttt{vec4} para respetar el alineamiento de 16 bytes de WGSL:
+
+\begin{lstlisting}[style=glsl, language={}]
+@fragment
+fn fs_main(in: VertOut) -> @location(0) vec4<f32> {
+  let N = normalize(in.normal);
+  let L = normalize(light.position - in.worldPos);
+  let V = normalize(camera.viewPos  - in.worldPos);
+  let H = normalize(L + V);
+
+  let ambient  = material.ambient * light.color * 0.25;
+  let diffuse  = max(dot(N, L), 0.0) * material.diffuse * light.color;
+  let spec     = pow(max(dot(N, H), 0.0), material.shininess);
+  let specular = spec * material.specular * light.color;
+  return vec4<f32>(ambient + diffuse + specular, 1.0);
+}
+\end{lstlisting}
+
+% ─────────────────────────────────────────────
+\section{Parte C — WebGPU + TSL}
+
+\subsection{Three.js WebGPU Renderer}
+
+Se usa \texttt{WebGPURenderer} de Three.js (\texttt{three/webgpu}) en lugar del renderer WebGL estándar. Requiere llamar \texttt{await renderer.init()} antes del primer frame.
+
+\subsection{Shading con nodos TSL}
+
+TSL (\textit{Three Shading Language}) permite escribir el shader como un grafo de nodos en JavaScript. El mismo cálculo Blinn-Phong se expresa así:
+
+\begin{lstlisting}[style=glsl, language={}]
+const N = normalize(normalWorld);
+const L = normalize(lightPos.sub(positionWorld));
+const V = normalize(cameraPosition.sub(positionWorld));
+const H = normalize(L.add(V));
+
+const ambient  = mul(vec3(0.15, 0.15, 0.2), lightColor).mul(0.25);
+const diffuse  = mul(max(dot(N, L), 0), mul(diffuseVec, lightColor));
+const specular = mul(pow(max(dot(N, H), 0), shininess),
+                     mul(specularVec, lightColor));
+
+mat.colorNode = add(add(ambient, diffuse), specular);
+\end{lstlisting}
+
+TSL traduce este grafo al shader WGSL correspondiente en tiempo de compilación.
+
+\subsection{Jerarquía con Three.js}
+
+Para la Parte C se usan objetos \texttt{THREE.Group} para la jerarquía, lo que permite delegar las transformaciones encadenadas al motor, mientras el shader personalizado Blinn-Phong sigue siendo responsabilidad del desarrollador.
+
+% ─────────────────────────────────────────────
+\section{Comparativa de los tres enfoques}
+
+\begin{center}
+\begin{tabular}{lccc}
+  \toprule
+  Aspecto & WebGL2 + GLSL & WebGPU + WGSL & WebGPU + TSL \\
+  \midrule
+  Matrices        & Manual (CPU) & Manual (CPU)  & Three.js     \\
+  Jerarquía       & MatrixStack  & MatrixStack   & Group/Object3D \\
+  Shader          & GLSL ES 3.00 & WGSL          & Nodos JS     \\
+  Uniforms        & \texttt{uniformMatrix4fv} & Uniform buffers & \texttt{uniform()} \\
+  Vértices        & VAO + VBO    & GPUBuffer     & BufferGeometry \\
+  Curva de aprendizaje & Alta    & Muy alta      & Media        \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+% ─────────────────────────────────────────────
+\section{Estructura del proyecto}
+
+\begin{verbatim}
+Tarea_3/
++-- index.html              (pagina de navegacion)
++-- partA/                  (WebGL2)
++-- partB/                  (WebGPU)
++-- partC/                  (TSL)
++-- src/
+    +-- shared/
+    |   +-- mat4.js         (matrices 4x4 column-major)
+    |   +-- MatrixStack.js  (pila push/pop)
+    |   +-- primitives.js   (sphere, cylinder, box, torus)
+    |   +-- controls-ui.js  (panel de controles HTML)
+    +-- webgl2/
+    |   +-- shaders.js      (GLSL ES 3.00)
+    |   +-- program.js      (createProgram, createMesh, setUniforms)
+    |   +-- RobotArm.js
+    |   +-- SolarSystem.js
+    +-- webgpu/
+    |   +-- shaders.js      (WGSL)
+    |   +-- pipeline.js     (initGPU, buffers, pipeline, depth)
+    |   +-- RobotArm.js
+    |   +-- SolarSystem.js
+    +-- tsl/
+        +-- RobotArm.js
+        +-- SolarSystem.js
+\end{verbatim}
+
+% ─────────────────────────────────────────────
+\section{Despliegue}
+
+El proyecto se construye con \textbf{Vite} (\texttt{npm run build}) generando un sitio estático en \texttt{dist/}. Está desplegado en \textbf{Vercel} con configuración automática detectada por el preset de Vite:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Build command:} \texttt{npm run build}
+  \item \textbf{Output directory:} \texttt{dist}
+  \item \textbf{Root directory:} \texttt{Tarea\_3}
+\end{itemize}
+
+URL pública: \url{https://tareas-seminario.vercel.app/}
+
+\textbf{Nota sobre compatibilidad:} Las Partes B y C requieren un navegador con soporte WebGPU (Chrome 113+ o Edge 113+). En Linux puede ser necesario iniciar Chrome con \texttt{--enable-features=Vulkan}. La Parte A (WebGL2) funciona en cualquier navegador moderno.
+
+% ─────────────────────────────────────────────
+\section{Conclusiones}
+
+Implementar el mismo pipeline en tres niveles de abstracción distintos permite entender con precisión qué hace cada capa del stack gráfico:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{WebGL2} obliga a gestionar cada estado de la GPU manualmente: compilación de shaders, atributos de vértices, uniforms y la normal matrix. Es verbose pero sin magia.
+  \item \textbf{WebGPU} introduce conceptos modernos como bind groups y uniform buffers explícitos, lo que impone disciplina de alineamiento de memoria pero resulta más predecible y eficiente.
+  \item \textbf{TSL} permite escribir el shader como código JavaScript sin abandonar el control sobre la lógica de iluminación, ofreciendo el mejor equilibrio entre productividad y comprensión del pipeline.
+\end{itemize}
+
+La biblioteca compartida (\texttt{mat4.js}, \texttt{MatrixStack.js}, \texttt{primitives.js}) demuestra que las matemáticas de transformaciones son independientes de la API de renderizado, lo que facilita portar las mismas escenas entre WebGL2 y WebGPU con cambios mínimos en la lógica de alto nivel.
+
+\end{document}
