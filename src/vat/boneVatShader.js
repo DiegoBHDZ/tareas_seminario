@@ -3,7 +3,6 @@
 // animation frame from `boneTexture` using `timeOffset`, so cost stays O(1)
 // per frame regardless of instance count.
 export const VAT_VERTEX = /* glsl */ `
-attribute mat4 instanceMatrix;
 attribute float timeOffset;
 attribute vec4 skinIndex;
 attribute vec4 skinWeight;
@@ -82,6 +81,9 @@ precision highp float;
 uniform sampler2D map;
 uniform vec3 lightDir;
 uniform vec3 lightColor;
+uniform vec3 ambientColor;
+uniform vec3 rimColor;
+uniform float toonSteps;
 uniform vec3 viewPos;
 
 varying vec2 vUv;
@@ -96,9 +98,16 @@ void main() {
 
   vec4 base = texture2D(map, vUv);
   float diff = max(dot(N, L), 0.0);
+  float toon = floor(diff * toonSteps) / toonSteps;
   float spec = pow(max(dot(N, H), 0.0), 32.0);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 2.6);
 
-  vec3 color = base.rgb * 0.35 + base.rgb * diff * lightColor + vec3(0.18) * spec;
+  vec3 stylizedBase = mix(vec3(0.16, 0.84, 1.0), base.rgb, 0.55);
+  vec3 color = stylizedBase * 0.42;
+  color += stylizedBase * toon * lightColor * 1.15;
+  color += ambientColor * stylizedBase * 0.75;
+  color += vec3(0.28) * spec;
+  color += rim * rimColor * 0.6;
   gl_FragColor = vec4(color, base.a);
 }
 `;

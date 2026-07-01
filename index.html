@@ -42,31 +42,32 @@
   <h1>Tarea 3 — Gráficos de Bajo Nivel</h1>
   <p class="subtitle">Pipeline manual, shaders propios, jerarquías sin framework</p>
   <div class="cards">
-    <a class="card" href="/partD/">
+    <a class="card" href="./partD/">
       <div class="card-tag">Parte D</div>
-      <h2>Instancing</h2>
-      <p>InstancedMesh con cientos de agentes animados de forma independiente.</p>
+      <h2>Instancing + Toon</h2>
+      <p>100 agentes por defecto con shader toon y wobble, animados de forma independiente.</p>
       <ul>
-        <li>500 instancias de un cardumen de peces</li>
+        <li>100 instancias activas al inicio</li>
         <li>Posición, rotación y escala por instancia</li>
+        <li>Shader avanzado aplicado al cardumen</li>
         <li>Matrices actualizadas cada frame</li>
-        <li>FPS estable, escalable hasta 2000</li>
+        <li>FPS visible y escalable hasta 2000</li>
       </ul>
       <div class="pts">50 pts</div>
     </a>
-    <a class="card" href="/partE/">
+    <a class="card" href="./partE/">
       <div class="card-tag">Parte E</div>
-      <h2>boneVAT</h2>
-      <p>Animación de esqueleto horneada en textura, reproducida en el vertex shader.</p>
+      <h2>boneVAT + Toon</h2>
+      <p>100 agentes con boneVAT, shader toon propio y animación desfasada por instancia.</p>
       <ul>
-        <li>Bones horneados en DataTexture</li>
+        <li>100 instancias por defecto</li>
+        <li>Toon shading + rim light en el fragment shader</li>
         <li>Offset de tiempo por instancia</li>
-        <li>Sin AnimationMixer ni CPU por frame</li>
-        <li>Un solo draw call</li>
+        <li>Un solo draw call y FPS visible</li>
       </ul>
       <div class="pts">50 pts</div>
     </a>
-    <a class="card" href="/partA/">
+    <a class="card" href="./partA/">
       <div class="card-tag">Parte A</div>
       <h2>WebGL2 + GLSL</h2>
       <p>Pipeline completo sin Three.js. VAOs, VBOs, stack de matrices manual.</p>
@@ -78,7 +79,7 @@
       </ul>
       <div class="pts">50 pts</div>
     </a>
-    <a class="card" href="/partB/">
+    <a class="card" href="./partB/">
       <div class="card-tag">Parte B</div>
       <h2>WebGPU + WGSL</h2>
       <p>API moderna: render pipeline, bind groups, uniform buffers WGSL.</p>
@@ -90,7 +91,7 @@
       </ul>
       <div class="pts">25 pts</div>
     </a>
-    <a class="card" href="/partC/">
+    <a class="card" href="./partC/">
       <div class="card-tag">Parte C</div>
       <h2>WebGPU + TSL</h2>
       <p>Three.js WebGPU renderer con nodos TSL para sombreado Blinn-Phong.</p>

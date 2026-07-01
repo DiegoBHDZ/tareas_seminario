@@ -48,13 +48,13 @@
 </head>
 <body>
   <header>
-    <a href="/">← Inicio</a>
-    <h1>Parte D — Instancing · InstancedMesh con cientos de agentes animados</h1>
+    <a href="../">← Inicio</a>
+    <h1>Parte D — Instancing · 100 agentes con shader toon y wobble</h1>
   </header>
   <div class="body">
     <div style="position:relative;flex:1;min-width:0;">
       <canvas id="gl"></canvas>
-      <div class="badge">Three.js · InstancedMesh · 1 draw call · matrices actualizadas en CPU cada frame</div>
+      <div class="badge">Three.js · InstancedMesh · 1 draw call · toon shader + wobble por instancia</div>
     </div>
     <aside class="ctrl-panel">
       <h2>Estado</h2>
@@ -71,8 +71,8 @@
       <p class="ctrl-note">
         Cada pez es una instancia independiente (posición, rotación y escala propias)
         dentro de un único <code>InstancedMesh</code>. Las matrices se recalculan
-        cada frame en CPU (sin VAT) — al subir el contador verás cómo cae el FPS
-        antes de degradar el render.
+        cada frame en CPU y el shader añade toon shading + wobble por instancia.
+        Con 100 agentes deberías mantener 30 FPS o más en hardware normal.
       </p>
     </aside>
   </div>

@@ -5,7 +5,7 @@ import { FpsMeter } from '../shared/FpsMeter.js';
 import { bakeBoneVAT } from './BoneVAT.js';
 import { VAT_VERTEX, VAT_FRAGMENT } from './boneVatShader.js';
 
-const INSTANCE_COUNT = 500;
+const INSTANCE_COUNT = 100;
 const BOUNDS = { x: 30, y: 11, z: 30 };
 
 export function createFishSwarmVAT(canvas, hud) {
@@ -39,7 +39,7 @@ export function createFishSwarmVAT(canvas, hud) {
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/clown_fish_low_poly_animated.glb',
+    '../models/clown_fish_low_poly_animated.glb',
     (gltf) => {
       const baked = bakeBoneVAT(gltf, 'swim');
 
@@ -65,6 +65,7 @@ export function createFishSwarmVAT(canvas, hud) {
       material = new THREE.ShaderMaterial({
         vertexShader: VAT_VERTEX,
         fragmentShader: VAT_FRAGMENT,
+        side: THREE.DoubleSide,
         uniforms: {
           boneTexture: { value: baked.texture },
           numBones: { value: baked.numBones },
@@ -75,7 +76,10 @@ export function createFishSwarmVAT(canvas, hud) {
           bindMatrixInverse: { value: baked.bindMatrixInverse },
           map: { value: baked.material.map },
           lightDir: { value: new THREE.Vector3(-0.4, -1, -0.3) },
-          lightColor: { value: new THREE.Color(0xfff2d7) },
+          lightColor: { value: new THREE.Color(0xffffff) },
+          ambientColor: { value: new THREE.Color(0x4a8bd8) },
+          rimColor: { value: new THREE.Color(0x9ef1ff) },
+          toonSteps: { value: 4.0 },
           viewPos: { value: camera.position },
         },
       });

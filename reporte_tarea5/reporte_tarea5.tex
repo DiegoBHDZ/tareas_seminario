@@ -1,0 +1,503 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+
+\geometry{margin=2.5cm}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  urlcolor=blue!60!black,
+  pdftitle={Tarea 5 - Instancing y Vertex Animation Textures},
+  pdfauthor={Diego Barrera Hernández y Brandon Daniel Martínez Alcántara}
+}
+
+\definecolor{codebg}{RGB}{20,20,32}
+\definecolor{codeframe}{RGB}{60,60,100}
+\definecolor{codecomment}{RGB}{100,160,100}
+\definecolor{codekw}{RGB}{130,160,255}
+\definecolor{codestr}{RGB}{255,180,100}
+
+\lstdefinestyle{glsl}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{white},
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecomment},
+  stringstyle=\color{codestr},
+  frame=single,
+  rulecolor=\color{codeframe},
+  breaklines=true,
+  tabsize=2,
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+
+% ──────────────────────────────────────────────
+\begin{document}
+
+% ── PORTADA ───────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+
+  {\Large Universidad Autónoma Metropolitana\par}
+  \vspace{0.4cm}
+  {\large Licenciatura en tecnologias y sistemas de la información.\par}
+
+  \vspace{2.5cm}
+  {\Huge\bfseries Seminario de Tecnologías II\par}
+  \vspace{0.6cm}
+  {\LARGE Tarea 5\par}
+  \vspace{0.4cm}
+  {\large Instancing y Vertex Animation Textures\par}
+
+  \vspace{3cm}
+  {\large Diego Barrera Hernández\par}
+  \vspace{0.3cm}
+  {\large Brandon Daniel Martínez Alcántara\par}
+
+  \vfill
+  {\large Ciudad de México, 2025\par}
+\end{titlepage}
+
+% ── ÍNDICE ────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ─────────────────────────────────────────────
+\section{Objetivo}
+
+El objetivo de esta tarea es comparar dos enfoques para renderizar grandes cantidades de
+agentes animados en tiempo real: \textbf{Instancing con actualización de matrices en CPU}
+(Parte~D) y \textbf{Vertex Animation Textures horneadas} (Parte~E). Ambas partes usan
+\texttt{THREE.InstancedMesh} para emitir un único draw call independientemente del número
+de instancias, pero difieren radicalmente en dónde vive el costo de animación.
+
+El proyecto se divide en dos partes:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Parte D (50 pts):} \texttt{InstancedMesh} con movimiento simulado —
+        las matrices de cada instancia se recalculan en CPU cada frame.
+  \item \textbf{Parte E (50 pts):} \texttt{InstancedMesh} + Bone VAT —
+        la animación de esqueleto se hornea en una \texttt{DataTexture} y el
+        vertex shader la reproduce en GPU sin ningún trabajo en CPU por frame.
+\end{itemize}
+
+La demo desplegada está disponible en:
+
+\begin{center}
+  \url{https://tareas-seminario.vercel.app/}
+\end{center}
+
+% ─────────────────────────────────────────────
+\section{Escena implementada: Cardumen de peces}
+
+Ambas partes trabajan sobre la misma escena: un cardumen de peces payaso
+(\textit{clown fish}) renderizados en un entorno subacuático oscuro con niebla
+exponencial. El modelo \texttt{clown\_fish\_low\_poly\_animated.glb} es un
+\texttt{SkinnedMesh} con animación de esqueleto (\texttt{swim}) cargado mediante
+\texttt{GLTFLoader}.
+
+La escena incluye:
+\begin{itemize}[leftmargin=*]
+  \item Fondo oscuro (\texttt{\#071521}) con niebla exponencial (\textit{density} = 0.014).
+  \item Luz hemisférica (cielo azulado / fondo oscuro) + luz direccional cálida.
+  \item Suelo circular con \texttt{MeshStandardMaterial} rugoso.
+  \item Cámara con \texttt{OrbitControls} (damping 0.08) posicionada en $(0,\;16,\;48)$.
+  \item Límites de movimiento $\pm 30$ en $X$ y $Z$, $[0.6,\;11]$ en $Y$.
+\end{itemize}
+
+El modelo se normaliza al cargar: se centra en el origen, se escala uniformemente
+para que su mayor dimensión mida 2.6 unidades y se rota 180° en $Y$ para que los
+peces apunten en la dirección de avance.
+
+% ─────────────────────────────────────────────
+\section{Parte D — Instancing con InstancedMesh}
+
+\subsection{El concepto de Instancing}
+
+\textit{Instancing} permite renderizar $N$ copias de la misma geometría con un único
+draw call. En lugar de llamar $N$ veces a \texttt{drawElements}, la GPU recibe la
+geometría una vez y un buffer de matrices que describe la posición, rotación y escala
+de cada copia. Esto elimina el overhead de CPU de $N$ draw calls y es especialmente
+eficiente cuando las instancias comparten la misma malla y material.
+
+En Three.js, \texttt{THREE.InstancedMesh} encapsula este mecanismo: acepta una
+\texttt{BufferGeometry}, un \texttt{Material} y el número máximo de instancias, y
+expone \texttt{setMatrixAt(i, matrix)} para actualizar la transformación de cada instancia.
+
+\subsection{Inicialización y pre-asignación}
+
+El sistema pre-asigna \textbf{2 000 instancias} al crear el \texttt{InstancedMesh},
+lo que permite cambiar la cantidad activa en tiempo de ejecución sin reasignar buffers
+de GPU. El estado de simulación de cada instancia vive en \texttt{Float32Array}
+paralelos:
+
+\begin{lstlisting}[style=glsl, language={}]
+const MAX_INSTANCES = 2000;
+const posX    = new Float32Array(MAX_INSTANCES);
+const posY    = new Float32Array(MAX_INSTANCES);
+const posZ    = new Float32Array(MAX_INSTANCES);
+const heading = new Float32Array(MAX_INSTANCES);
+const speed   = new Float32Array(MAX_INSTANCES);
+const phase   = new Float32Array(MAX_INSTANCES);
+const scaleArr = new Float32Array(MAX_INSTANCES);
+const turnRate = new Float32Array(MAX_INSTANCES);
+\end{lstlisting}
+
+Los arreglos de tipo (\texttt{Float32Array}) se eligen deliberadamente en lugar de
+arrays JavaScript normales: son datos contiguos en memoria y permiten iteraciones
+más rápidas en el bucle de actualización al evitar la indiferencia de tipo del motor JS.
+
+La carga del modelo elimina los atributos \texttt{skinIndex} y \texttt{skinWeight}
+(innecesarios en esta parte) y crea un único \texttt{InstancedMesh}:
+
+\begin{lstlisting}[style=glsl, language={}]
+geometry.deleteAttribute('skinIndex');
+geometry.deleteAttribute('skinWeight');
+instancedMesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
+instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+instancedMesh.count = activeCount;  // comienza en 500
+\end{lstlisting}
+
+\texttt{DynamicDrawUsage} indica a la GPU que el buffer de matrices se actualizará
+frecuentemente, lo que puede mejorar el rendimiento en algunas implementaciones WebGL.
+
+\subsection{Bucle de actualización de instancias}
+
+Cada frame, la función \texttt{updateInstances(dt, elapsed)} itera sobre las
+\texttt{activeCount} instancias y calcula la nueva posición y orientación:
+
+\begin{lstlisting}[style=glsl, language={}]
+for (let i = 0; i < count; i++) {
+  // Giro suave: componente determinista + oscilacion senoidal
+  heading[i] += turnRate[i] * dt * 0.2
+             +  Math.sin(elapsed * 0.5 + phase[i]) * dt * 0.3;
+
+  // Avance en la direccion actual
+  posX[i] += Math.cos(heading[i]) * speed[i] * dt;
+  posZ[i] += Math.sin(heading[i]) * speed[i] * dt;
+  posY[i] += Math.sin(elapsed * 1.3 + phase[i]) * dt * 0.6;
+
+  // Wrapping toroidal en los limites del volumen
+  if (posX[i] >  BOUNDS.x) posX[i] = -BOUNDS.x;
+  if (posX[i] < -BOUNDS.x) posX[i] =  BOUNDS.x;
+  // ... idem Z, Y con clamp
+
+  dummy.position.set(posX[i], posY[i], posZ[i]);
+  dummy.rotation.set(Math.sin(elapsed*4 + phase[i])*0.08,
+                     heading[i], 0);
+  dummy.scale.setScalar(scaleArr[i]);
+  dummy.updateMatrix();
+  instancedMesh.setMatrixAt(i, dummy.matrix);
+}
+instancedMesh.instanceMatrix.needsUpdate = true;
+\end{lstlisting}
+
+Al final del bucle, \texttt{instanceMatrix.needsUpdate = true} sube el buffer de
+matrices completo a la GPU en el siguiente frame. Esto es el costo dominante de la
+Parte~D: $O(N)$ operaciones en CPU por frame y una transferencia de $N \times 64$
+bytes (cada \texttt{mat4}) al bus de la GPU.
+
+\subsection{Simulación de natación}
+
+El movimiento visible de los peces combina tres componentes, todas calculadas en CPU:
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Componente & Mecanismo \\
+  \midrule
+  Avance horizontal & \texttt{cos/sin(heading)} $\times$ \texttt{speed} $\times$ \texttt{dt} \\
+  Oscilación vertical & $\sin(elapsed \times 1.3 + phase_i) \times 0.6 \times dt$ \\
+  Bamboleo de cabeza & Rotación en $X$: $\sin(elapsed \times 4 + phase_i) \times 0.08$ \\
+  Giro & \texttt{turnRate}$_i$ + perturbación senoidal lenta \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La propiedad \texttt{phase}$_i$ inicializada aleatoriamente garantiza que cada pez
+esté en un punto distinto de su ciclo de movimiento desde el primer frame.
+
+\subsection{Control de cantidad}
+
+Un slider en el panel lateral cambia \texttt{instancedMesh.count} sin reconstruir
+nada: Three.js simplemente ignora las instancias con índice mayor al \texttt{count}
+activo. Esto permite observar en tiempo real cómo el FPS cae a medida que aumenta
+el número de instancias activas, ilustrando la complejidad $O(N)$ del enfoque.
+
+% ─────────────────────────────────────────────
+\section{Parte E — Bone VAT (Vertex Animation Texture)}
+
+\subsection{El concepto de VAT}
+
+Una \textit{Vertex Animation Texture} (VAT) o, en este caso, \textit{Bone VAT},
+consiste en hornear los resultados de una animación de esqueleto a una textura y
+reproducirla en el vertex shader. En lugar de ejecutar el \texttt{AnimationMixer}
+de Three.js en CPU cada frame (que calcula e interpola la pose de todos los huesos),
+el shader simplemente \textbf{muestrea la textura} para obtener la matriz de cada hueso
+en el instante deseado.
+
+El resultado es que el costo de animación pasa de $O(N \times B)$ en CPU
+($N$ instancias, $B$ huesos) a un costo fijo de GPU que depende solo de la
+complejidad del shader, no del número de instancias.
+
+\subsection{Horneado: \texttt{bakeBoneVAT}}
+
+La función \texttt{bakeBoneVAT(gltf, clipName)} recorre el clip de animación a
+\textbf{24 fps} y almacena la pose de cada hueso en cada frame:
+
+\begin{enumerate}[leftmargin=*]
+  \item Se localiza el \texttt{SkinnedMesh} y su \texttt{Skeleton} dentro de la escena GLTF.
+  \item Se crea un \texttt{AnimationMixer} efímero y se hace avanzar al clip frame a frame
+        con \texttt{mixer.setTime(t)} + \texttt{skeleton.update()}.
+  \item En cada frame $f$, \texttt{skeleton.boneMatrices} contiene el arreglo de matrices
+        $4\times4$ de todos los huesos ya multiplicadas por la bindMatrixInverse
+        (listas para el skinning). Estas 16 floats por hueso se copian a un
+        \texttt{Float32Array} de tamaño \texttt{numFrames × numBones × 16}.
+  \item Los datos se suben como \texttt{DataTexture} de tipo \texttt{FloatType},
+        con \texttt{NearestFilter} (para evitar interpolación no deseada entre huesos)
+        y sin mipmaps.
+\end{enumerate}
+
+\begin{lstlisting}[style=glsl, language={}]
+const BAKE_FPS  = 24;
+const numFrames = Math.round(clip.duration * BAKE_FPS);
+const data = new Float32Array(numFrames * numBones * 16);
+
+for (let f = 0; f < numFrames; f++) {
+  mixer.setTime((f / (numFrames - 1)) * clip.duration);
+  gltf.scene.updateMatrixWorld(true);
+  skeleton.update();
+  data.set(skeleton.boneMatrices, f * numBones * 16);
+}
+
+const texture = new THREE.DataTexture(
+  data, numBones * 4, numFrames,
+  THREE.RGBAFormat, THREE.FloatType
+);
+texture.magFilter = THREE.NearestFilter;
+texture.needsUpdate = true;
+\end{lstlisting}
+
+La textura tiene \textbf{ancho} = $4 \times \texttt{numBones}$ texeles
+(cada mat4 ocupa 4 texeles RGBA de 4 floats cada uno) y
+\textbf{alto} = \texttt{numFrames} filas. Una vez creada, el mixer se descarta:
+ya no se necesita en ningún frame posterior.
+
+\subsection{Offset de tiempo por instancia}
+
+Para que las 500 instancias naden de forma desincronizada sin ningún costo adicional
+por frame, se añade un atributo \texttt{timeOffset} como
+\texttt{InstancedBufferAttribute}:
+
+\begin{lstlisting}[style=glsl, language={}]
+const timeOffsets = new Float32Array(INSTANCE_COUNT);
+for (let i = 0; i < INSTANCE_COUNT; i++) {
+  timeOffsets[i] = Math.random() * baked.duration;
+}
+geometry.setAttribute('timeOffset',
+  new THREE.InstancedBufferAttribute(timeOffsets, 1));
+\end{lstlisting}
+
+Este buffer se sube a la GPU una única vez al cargar. El vertex shader usa
+\texttt{timeOffset} (por instancia) más el uniforme \texttt{time} (global)
+para calcular el frame de animación de cada instancia independientemente:
+
+\begin{lstlisting}[style=glsl, language={}]
+float localTime = mod(time + timeOffset, duration);
+float framef    = (localTime / duration) * numFrames;
+float f0        = floor(framef);
+float f1        = mod(f0 + 1.0, numFrames);
+float frac      = framef - f0;
+\end{lstlisting}
+
+\subsection{Vertex shader — lectura de la textura VAT}
+
+La función auxiliar \texttt{getBoneMatrix} reconstruye una mat4 a partir de cuatro
+texeles consecutivos de la fila correspondiente al frame:
+
+\begin{lstlisting}[style=glsl, language={}]
+mat4 getBoneMatrix(float boneIndex, float frame) {
+  float texWidth = numBones * 4.0;
+  float u0 = (boneIndex * 4.0 + 0.5) / texWidth;
+  float du = 1.0 / texWidth;
+  float v  = (frame + 0.5) / numFrames;
+  vec4 c0 = texture2D(boneTexture, vec2(u0,           v));
+  vec4 c1 = texture2D(boneTexture, vec2(u0 + du,      v));
+  vec4 c2 = texture2D(boneTexture, vec2(u0 + 2.0*du,  v));
+  vec4 c3 = texture2D(boneTexture, vec2(u0 + 3.0*du,  v));
+  return mat4(c0, c1, c2, c3);
+}
+\end{lstlisting}
+
+Con las matrices de los frames $f_0$ y $f_1$ se calcula el skinning en ambos
+y se interpola linealmente con \texttt{mix} para conseguir una animación suave
+entre fotogramas horneados:
+
+\begin{lstlisting}[style=glsl, language={}]
+vec4 skinVertex = bindMatrix * vec4(position, 1.0);
+
+mat4 bx0 = getBoneMatrix(skinIndex.x, f0);
+// ... (by0, bz0, bw0 idem para los otros 3 huesos)
+mat4 bx1 = getBoneMatrix(skinIndex.x, f1);
+// ... (by1, bz1, bw1)
+
+vec4 pos0 = bx0*skinVertex*skinWeight.x + by0*skinVertex*skinWeight.y
+          + bz0*skinVertex*skinWeight.z + bw0*skinVertex*skinWeight.w;
+vec4 pos1 = bx1*skinVertex*skinWeight.x + by1*skinVertex*skinWeight.y
+          + bz1*skinVertex*skinWeight.z + bw1*skinVertex*skinWeight.w;
+
+vec4 skinnedPos = mix(pos0, pos1, frac);
+vec3 localPos   = (bindMatrixInverse * skinnedPos).xyz;
+\end{lstlisting}
+
+La posición final en clip space combina la transformación de instancia
+(\texttt{instanceMatrix}, fijada una sola vez al cargar) con la posición de modelo:
+
+\begin{lstlisting}[style=glsl, language={}]
+vec4 worldPos = modelMatrix * instanceMatrix * vec4(localPos, 1.0);
+gl_Position   = projectionMatrix * viewMatrix * worldPos;
+\end{lstlisting}
+
+\subsection{Fragment shader — iluminación Blinn-Phong con textura}
+
+El fragment shader aplica la textura de color del modelo con iluminación
+Blinn-Phong usando el half-vector $\mathbf{H} = \text{normalize}(\mathbf{L} + \mathbf{V})$:
+
+\begin{lstlisting}[style=glsl, language={}]
+vec3 N = normalize(vNormal);
+vec3 L = normalize(-lightDir);
+vec3 V = normalize(viewPos - vWorldPos);
+vec3 H = normalize(L + V);
+
+vec4 base = texture2D(map, vUv);
+float diff = max(dot(N, L), 0.0);
+float spec = pow(max(dot(N, H), 0.0), 32.0);
+
+vec3 color = base.rgb * 0.35            // termino ambiental
+           + base.rgb * diff * lightColor  // difuso
+           + vec3(0.18) * spec;            // especular
+
+gl_FragColor = vec4(color, base.a);
+\end{lstlisting}
+
+\subsection{Trabajo de CPU por frame}
+
+Una vez terminada la carga, el único trabajo de CPU por frame es:
+
+\begin{lstlisting}[style=glsl, language={}]
+if (material) material.uniforms.time.value = elapsed;
+\end{lstlisting}
+
+Una asignación de un flotante. Las matrices de instancia \textbf{nunca se tocan}
+tras la inicialización: los peces no se mueven por el espacio en la Parte~E
+(cada uno permanece en su posición fija), pero su ciclo de natación es visible
+porque el vertex shader los deforma desde la textura VAT.
+
+% ─────────────────────────────────────────────
+\section{Estructura del proyecto}
+
+\begin{verbatim}
+Tarea_3/
++-- partD/
+|   +-- index.html          (interfaz: slider de cantidad, stats)
+|   +-- main.js             (punto de entrada)
++-- partE/
+|   +-- index.html          (interfaz: stats del VAT)
+|   +-- main.js             (punto de entrada)
++-- src/
+    +-- shared/
+    |   +-- FpsMeter.js     (contador de frames en pantalla)
+    +-- instancing/
+    |   +-- FishSwarm.js    (Parte D: InstancedMesh + sim CPU)
+    +-- vat/
+        +-- BoneVAT.js      (horneado de clip a DataTexture)
+        +-- FishSwarmVAT.js (Parte E: InstancedMesh + ShaderMaterial)
+        +-- boneVatShader.js (vertex y fragment GLSL)
+\end{verbatim}
+
+% ─────────────────────────────────────────────
+\section{Comparativa de los dos enfoques}
+
+\begin{center}
+\begin{tabular}{lcc}
+  \toprule
+  Aspecto & Parte D (Instancing) & Parte E (Bone VAT) \\
+  \midrule
+  Draw calls por frame    & 1                       & 1 \\
+  Costo de animación      & $O(N)$ en CPU           & $O(1)$ en CPU \\
+  Trabajo CPU por frame   & $N$ matrices actualizadas & 1 float (\texttt{time}) \\
+  Transferencia GPU/frame & $N \times 64$ bytes      & 4 bytes (uniforme) \\
+  Desincronización        & \texttt{phase}$_i$ + sim & \texttt{timeOffset}$_i$ \\
+  Skinning                & Ninguno (forma estática) & GPU, vertex shader \\
+  Variación de cantidad   & Slider 100--2000        & Fijo en 500 \\
+  Modelo usado            & Solo la malla (sin rig) & Malla + rig + clip \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La diferencia clave es que en la Parte~D el movimiento de cada pez se simula
+matemáticamente en CPU sin skinning real, mientras que la Parte~E reproduce
+la animación de esqueleto original del modelo sin ningún trabajo de CPU por frame.
+
+% ─────────────────────────────────────────────
+\section{Despliegue}
+
+El proyecto se construye con \textbf{Vite} (\texttt{npm run build}) generando un
+sitio estático en \texttt{dist/}. Está desplegado en \textbf{Vercel} con
+configuración automática detectada por el preset de Vite:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Build command:} \texttt{npm run build}
+  \item \textbf{Output directory:} \texttt{dist}
+  \item \textbf{Root directory:} \texttt{Tarea\_3}
+\end{itemize}
+
+URL pública: \url{https://tareas-seminario.vercel.app/}
+
+Las Partes~D y~E usan \texttt{THREE.WebGLRenderer} estándar, por lo que funcionan
+en cualquier navegador moderno con soporte WebGL2 (Chrome 56+, Firefox 51+, Safari 15+).
+
+% ─────────────────────────────────────────────
+\section{Conclusiones}
+
+Implementar el mismo cardumen de peces con dos estrategias de animación distintas
+permite cuantificar con precisión el trade-off entre flexibilidad y rendimiento:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Instancing puro (Parte~D)} es sencillo de implementar: basta con
+        mantener arreglos de estado por instancia y actualizar las matrices cada frame.
+        Su limitación es que el costo escala linealmente con el número de instancias
+        activas, lo que pone un techo práctico de rendimiento visible en tiempo real
+        con el slider.
+
+  \item \textbf{Bone VAT (Parte~E)} requiere un paso de preprocesamiento (el horneado)
+        y un shader personalizado más complejo, pero la recompensa es que el costo de
+        animación en CPU por frame es constante e independiente de cuántas instancias
+        haya. Esto hace al enfoque VAT ideal para efectos de masas donde se necesitan
+        cientos o miles de personajes animados simultáneamente.
+
+  \item Ambas partes mantienen \textbf{un único draw call} gracias a
+        \texttt{InstancedMesh}, confirmando que el cuello de botella en la Parte~D
+        está en la CPU (actualización de matrices), no en la GPU.
+
+  \item El atributo \texttt{timeOffset} de la Parte~E demuestra que la desincronización
+        de instancias es trivial con VAT: el offset se sube una vez y la GPU se encarga
+        del resto sin ningún dato adicional por frame.
+\end{itemize}
+
+\end{document}

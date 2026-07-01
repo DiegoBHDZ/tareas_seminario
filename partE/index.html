@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Parte E — boneVAT</title>
+  <title>Parte E — boneVAT + Toon</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0a0a12; color: #e0e0ff; font-family: system-ui, sans-serif;
@@ -42,13 +42,13 @@
 </head>
 <body>
   <header>
-    <a href="/">← Inicio</a>
-    <h1>Parte E — boneVAT · animación de esqueleto horneada en textura</h1>
+    <a href="../">← Inicio</a>
+    <h1>Parte E — boneVAT + Toon · 100 agentes con shader avanzado</h1>
   </header>
   <div class="body">
     <div style="position:relative;flex:1;min-width:0;">
       <canvas id="gl"></canvas>
-      <div class="badge">Three.js · InstancedMesh + ShaderMaterial · skinning 100% en vertex shader</div>
+      <div class="badge">Three.js · InstancedMesh + boneVAT + Toon · 100 agentes con FPS visible</div>
     </div>
     <aside class="ctrl-panel">
       <h2>Estado</h2>
@@ -67,7 +67,7 @@
       </p>
       <p class="ctrl-note">
         Cada instancia tiene un atributo <code>timeOffset</code> distinto, así que
-        las 500 animaciones quedan desincronizadas sin costo extra. Las matrices de
+        las 100 animaciones quedan desincronizadas sin costo extra. Las matrices de
         instancia (posición/rotación/escala) se fijan una sola vez al cargar —
         el único trabajo de CPU por frame es actualizar un uniforme <code>time</code>.
       </p>

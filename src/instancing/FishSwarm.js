@@ -4,8 +4,23 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FpsMeter } from '../shared/FpsMeter.js';
 
 const MAX_INSTANCES = 2000;
-const DEFAULT_INSTANCES = 500;
+const DEFAULT_INSTANCES = 100;
 const BOUNDS = { x: 30, y: 11, z: 30 };
+
+function createToonGradientMap() {
+  const data = new Uint8Array([
+    18, 18, 18, 255,
+    72, 72, 72, 255,
+    150, 150, 150, 255,
+    255, 255, 255, 255,
+  ]);
+  const texture = new THREE.DataTexture(data, 4, 1, THREE.RGBAFormat);
+  texture.needsUpdate = true;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
 
 export function createFishSwarmInstanced(canvas, hud) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -66,7 +81,7 @@ export function createFishSwarmInstanced(canvas, hud) {
 
   const loader = new GLTFLoader();
   loader.load(
-    '/models/clown_fish_low_poly_animated.glb',
+    '../models/clown_fish_low_poly_animated.glb',
     (gltf) => {
       let sourceMesh = null;
       gltf.scene.traverse((obj) => {
@@ -87,8 +102,37 @@ export function createFishSwarmInstanced(canvas, hud) {
       const normalize = 2.6 / Math.max(size.x, size.y, size.z);
       geometry.scale(normalize, normalize, normalize);
       geometry.rotateY(Math.PI);
+      geometry.setAttribute('instancePhase', new THREE.InstancedBufferAttribute(phase, 1));
 
-      const material = sourceMesh.material.clone();
+      const gradientMap = createToonGradientMap();
+      const material = new THREE.MeshToonMaterial({
+        color: sourceMesh.material.color?.clone?.() ?? new THREE.Color(0xffffff),
+        map: sourceMesh.material.map ?? null,
+        gradientMap,
+        fog: true,
+        transparent: Boolean(sourceMesh.material.transparent),
+        alphaTest: sourceMesh.material.alphaTest ?? 0,
+      });
+      material.side = sourceMesh.material.side;
+      material.depthWrite = sourceMesh.material.depthWrite;
+      material.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = { value: 0 };
+        shader.uniforms.uWobbleStrength = { value: 0.05 };
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            '#include <common>',
+            '#include <common>\nattribute float instancePhase;\nuniform float uTime;\nuniform float uWobbleStrength;'
+          )
+          .replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+float wobbleWave = sin(uTime * 3.4 + instancePhase * 6.28318 + position.y * 7.5);
+float tailPulse = sin(uTime * 6.0 + instancePhase * 11.0 + position.z * 12.0);
+transformed += normal * (wobbleWave * 0.035 + tailPulse * 0.02) * uWobbleStrength;`
+          );
+        material.userData.shader = shader;
+      };
+      material.needsUpdate = true;
 
       instancedMesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
       instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -140,6 +184,9 @@ export function createFishSwarmInstanced(canvas, hud) {
     const elapsed = (now - t0) / 1000;
 
     controls.update();
+    if (instancedMesh?.material?.userData?.shader) {
+      instancedMesh.material.userData.shader.uniforms.uTime.value = elapsed;
+    }
     updateInstances(dt, elapsed);
     renderer.render(scene, camera);
     fps.tick(now);
